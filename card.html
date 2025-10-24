@@ -107,15 +107,24 @@
             position: absolute;
             width: 42px;
             height: 53px;
-            top: 311px; /* Przesunięto znacznie niżej */
-            left: 33px; /* Wyśrodkowano */
+            top: 311px;
+            left: 33px;
         }
 
         #hologramCanvas {
             width: 42px;
             height: 53px;
             display: block;
-            /* Usunięto transform: scaleY(-1) */
+        }
+        
+        .hologram_fade_overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            mix-blend-mode: screen;
         }
     </style>
 </head>
@@ -159,6 +168,8 @@
         <div class="inset">
 
         </div>
+        <canvas id="hologramFadeCanvas" class="hologram_fade_overlay"></canvas>
+        
         <div class="id_own_image" style="background-image: url('https://i.imgur.com/7vHo48p.jpg');"></div>
         <img draggable="false" src="images/gzot1Pt.gif" class="flag_video">
         
@@ -247,59 +258,6 @@
                 </div>
         </div>
         
-    
-        <!-- Drugi bottom_holder (rozwijany) -->
-        <div class="bottom_holder info_holder" style="font-size: 20px;">
-            <div class="bottom_grid">
-                <p class="bottom_text" style="color: #1f2125; margin-left: 0px;">Twoje dodatkowe dane</p>
-            </div>
-            <img class="action_arrow" src="images/2aN0vJE.png">
-            <div class="additional_holder">
-                <div class="additional_grid">
-                    <p class="additional_title">Nazwisko rodowe</p>
-                    <p class="additional_subtitle" id="familyName"></p>
-                </div>
-                <div class="additional_grid">
-                    <p class="additional_title">Płeć</p>
-                    <p class="additional_subtitle" id="sex"></p>
-                </div>
-                <div class="additional_grid">
-                    <p class="additional_title">Nazwisko rodowe ojca</p>
-                    <p class="additional_subtitle" id="fathersFamilyName"></p>
-                </div>
-                <div class="additional_grid">
-                    <p class="additional_title">Nazwisko rodowe matki</p>
-                    <p class="additional_subtitle" id="mothersFamilyName"></p>
-                </div>
-                <div class="additional_grid">
-                    <p class="additional_title">Miejsce urodzenia</p>
-                    <p class="additional_subtitle" id="birthPlace"></p>
-                </div>
-                <div class="additional_grid">
-                    <p class="additional_title">Kraj urodzenia</p>
-                    <p class="additional_subtitle" id="countryOfBirth"></p>
-                </div>
-                <div class="additional_grid">
-                    <p class="additional_title">Adres zameldowania na pobyt stały</p>
-                    <p class="additional_subtitle" id="adress"></p>
-                </div>
-                <div class="additional_grid" style="border-bottom: none;">
-                    <p class="additional_title">Data zameldowania na pobyt stały</p>
-                    <p class="additional_subtitle home_date"></p>
-                </div>
-            </div>
-        </div>
-    
-        <!-- Trzeci bottom_holder z przyciskiem "Aktualizuj" -->
-        <div class="bottom_holder" style="height: 90px; margin-bottom: 120px;">
-            <div class="bottom_update">
-                <div class="bottom_update_grid">
-                    <p class="bottom_update_text" style="margin-left: 0px;">Ostatnia aktualizacja</p>
-                    <p class="bottom_update_value" style="margin-left: 0px;"></p>
-                </div>
-                <button class="main_button update">Aktualizuj</button>
-            </div>
-        </div>
     </div>
     
     <script src="assets/bar.js"></script>
@@ -591,6 +549,263 @@
             }, 1000);
         }
     </script>
+
+    <script>
+        class HologramFadeEffect {
+            constructor(canvasId, imageSelector) {
+                this.canvas = document.getElementById(canvasId);
+                this.imageElement = document.querySelector(imageSelector);
+                this.gl = this.canvas.getContext('webgl') || this.canvas.getContext('experimental-webgl');
+                
+                if (!this.gl) {
+                    console.error('WebGL not supported for hologram fade');
+                    return;
+                }
+
+                this.textures = {};
+                this.program = null;
+                this.accelerometerCoords = [0.0, 0.0, 0.0];
+                
+                this.init();
+            }
+
+            getVertexShaderSource() {
+                return `
+                    uniform mat4 u_MVPMatrix;
+                    attribute vec4 a_VertexPosition;
+                    attribute vec2 a_TextureCoordinates;
+                    varying vec2 v_TextureCoordinates;
+                    
+                    void main() {
+                        gl_Position = u_MVPMatrix * a_VertexPosition;
+                        v_TextureCoordinates = a_TextureCoordinates;
+                    }
+                `;
+            }
+
+            getFragmentShaderSource() {
+                return `
+                    precision mediump float;
+                    
+                    uniform sampler2D u_ImageTexture;
+                    uniform sampler2D u_FadeMaskTexture;
+                    uniform sampler2D u_HologramTexture;
+                    uniform vec3 u_AccelerometerCoordinates;
+                    
+                    varying vec2 v_TextureCoordinates;
+                    
+                    void main() {
+                        // Pobierz oryginalny obraz
+                        vec4 imageColor = texture2D(u_ImageTexture, v_TextureCoordinates);
+                        
+                        // Pobierz maskę zanikania (białe = widoczne, czarne = przezroczyste)
+                        vec4 fadeMask = texture2D(u_FadeMaskTexture, v_TextureCoordinates);
+                        float fadeAlpha = (fadeMask.r + fadeMask.g + fadeMask.b) / 3.0;
+                        
+                        // Pobierz teksturę hologramu z przesunięciem
+                        vec2 hologramCoords = v_TextureCoordinates + u_AccelerometerCoordinates.xy * 0.05;
+                        vec4 hologramColor = texture2D(u_HologramTexture, hologramCoords);
+                        
+                        // Mieszaj hologram z obrazem na podstawie maski
+                        vec3 finalColor = mix(imageColor.rgb, hologramColor.rgb, fadeAlpha * 0.6);
+                        
+                        // Wyjście z przezroczystością kontrolowaną przez maskę
+                        gl_FragColor = vec4(finalColor, imageColor.a * fadeAlpha);
+                    }
+                `;
+            }
+
+            createShader(type, source) {
+                const shader = this.gl.createShader(type);
+                this.gl.shaderSource(shader, source);
+                this.gl.compileShader(shader);
+                
+                if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+                    console.error('Shader compilation error:', this.gl.getShaderInfoLog(shader));
+                    this.gl.deleteShader(shader);
+                    return null;
+                }
+                
+                return shader;
+            }
+
+            createProgram() {
+                const vertexShader = this.createShader(this.gl.VERTEX_SHADER, this.getVertexShaderSource());
+                const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, this.getFragmentShaderSource());
+                
+                const program = this.gl.createProgram();
+                this.gl.attachShader(program, vertexShader);
+                this.gl.attachShader(program, fragmentShader);
+                this.gl.linkProgram(program);
+                
+                if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+                    console.error('Program linking error:', this.gl.getProgramInfoLog(program));
+                    return null;
+                }
+                
+                return program;
+            }
+
+            loadTexture(url) {
+                const texture = this.gl.createTexture();
+                this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+                
+                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, 1, 1, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
+                
+                const image = new Image();
+                image.crossOrigin = 'anonymous';
+                image.onload = () => {
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+                    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+                    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+                };
+                image.src = url;
+                
+                return texture;
+            }
+
+            init() {
+                this.program = this.createProgram();
+                if (!this.program) return;
+
+                // Załaduj tekstury
+                this.textures.image = this.loadTexture('images/XSZFxrl.png');
+                this.textures.fadeMask = this.loadTexture('images/mid_background_main_dynamic.webp'); // Mapa zanikania
+                this.textures.hologram = this.loadTexture('pictures/hologram_overlay.webp');
+
+                const vertices = new Float32Array([
+                    -1.0, -1.0, 0.0, 1.0,
+                     1.0, -1.0, 1.0, 1.0,
+                    -1.0,  1.0, 0.0, 0.0,
+                     1.0,  1.0, 1.0, 0.0
+                ]);
+
+                this.vertexBuffer = this.gl.createBuffer();
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
+                this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
+
+                this.positionLocation = this.gl.getAttribLocation(this.program, 'a_VertexPosition');
+                this.texCoordLocation = this.gl.getAttribLocation(this.program, 'a_TextureCoordinates');
+                
+                this.mvpMatrixLocation = this.gl.getUniformLocation(this.program, 'u_MVPMatrix');
+                this.accelerometerLocation = this.gl.getUniformLocation(this.program, 'u_AccelerometerCoordinates');
+                this.imageTextureLocation = this.gl.getUniformLocation(this.program, 'u_ImageTexture');
+                this.fadeMaskTextureLocation = this.gl.getUniformLocation(this.program, 'u_FadeMaskTexture');
+                this.hologramTextureLocation = this.gl.getUniformLocation(this.program, 'u_HologramTexture');
+
+                this.render();
+            }
+
+            updateAccelerometer(x, y, z) {
+                this.accelerometerCoords = [x, y, z];
+            }
+
+            render() {
+                this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+                this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+                this.gl.useProgram(this.program);
+
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
+                
+                this.gl.enableVertexAttribArray(this.positionLocation);
+                this.gl.vertexAttribPointer(this.positionLocation, 2, this.gl.FLOAT, false, 16, 0);
+                
+                this.gl.enableVertexAttribArray(this.texCoordLocation);
+                this.gl.vertexAttribPointer(this.texCoordLocation, 2, this.gl.FLOAT, false, 16, 8);
+
+                const mvpMatrix = new Float32Array([
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1
+                ]);
+                this.gl.uniformMatrix4fv(this.mvpMatrixLocation, false, mvpMatrix);
+
+                this.gl.uniform3fv(this.accelerometerLocation, this.accelerometerCoords);
+
+                this.gl.activeTexture(this.gl.TEXTURE0);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.image);
+                this.gl.uniform1i(this.imageTextureLocation, 0);
+
+                this.gl.activeTexture(this.gl.TEXTURE1);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.fadeMask);
+                this.gl.uniform1i(this.fadeMaskTextureLocation, 1);
+
+                this.gl.activeTexture(this.gl.TEXTURE2);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.hologram);
+                this.gl.uniform1i(this.hologramTextureLocation, 2);
+
+                this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+
+                requestAnimationFrame(() => this.render());
+            }
+        }
+
+        // Inicjalizacja efektu hologramu zanikającego
+        let hologramFadeEffect;
+        let isFadeGyroscopeEnabled = false;
+
+        function initHologramFade() {
+            const canvas = document.getElementById('hologramFadeCanvas');
+            const idImageData = document.querySelector('.id_image_data');
+            
+            if (idImageData) {
+                canvas.width = idImageData.offsetWidth;
+                canvas.height = idImageData.offsetHeight;
+                hologramFadeEffect = new HologramFadeEffect('hologramFadeCanvas', '.id_image');
+            }
+        }
+
+        function requestFadeGyroscopePermission() {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            isFadeGyroscopeEnabled = true;
+                            startFadeGyroscope();
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                isFadeGyroscopeEnabled = true;
+                startFadeGyroscope();
+            }
+        }
+
+        function startFadeGyroscope() {
+            window.addEventListener('deviceorientation', handleFadeOrientation);
+        }
+
+        function handleFadeOrientation(event) {
+            if (!isFadeGyroscopeEnabled || !hologramFadeEffect) return;
+
+            const gamma = (event.gamma || 0) / 90.0;
+            const beta = (event.beta || 0) / 90.0;
+            const alpha = (event.alpha || 0) / 360.0;
+
+            hologramFadeEffect.updateAccelerometer(gamma, beta, alpha);
+        }
+
+        window.addEventListener('load', initHologramFade);
+
+        document.addEventListener('click', function() {
+            if (!isFadeGyroscopeEnabled) {
+                requestFadeGyroscopePermission();
+            }
+        }, { once: true });
+
+        if (navigator.userAgent.toLowerCase().indexOf('android') > -1) {
+            setTimeout(() => {
+                isFadeGyroscopeEnabled = true;
+                startFadeGyroscope();
+            }, 1000);
+        }
+    </script>
+
     <script>
     document.addEventListener("DOMContentLoaded", () => {
         function generateSerialNumber() {

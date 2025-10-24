@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="pl">
 <head>
     <title>mObywatel</title>
     <meta charset="UTF-8">
@@ -107,24 +109,23 @@
             position: absolute;
             width: 42px;
             height: 53px;
-            top: 311px;
-            left: 33px;
+            top: 311px; /* Przesunięto znacznie niżej */
+            left: 33px; /* Wyśrodkowano */
         }
 
         #hologramCanvas {
             width: 42px;
             height: 53px;
             display: block;
+            /* Usunięto transform: scaleY(-1) */
         }
-        
-        .hologram_fade_overlay {
+
+        /* Dodano style dla canvas hologramu zanikającego */
+        #hologramFadeCanvas {
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            mix-blend-mode: screen;
+            display: block;
         }
     </style>
 </head>
@@ -165,11 +166,11 @@
     <p class="time_text" id="time"></p>
     <div class="id_image_data">
         <img draggable="false" class="id_image" src="images/XSZFxrl.png">
+        <!-- Dodano canvas dla efektu hologramu zanikającego -->
+        <canvas id="hologramFadeCanvas" class="id_image"></canvas>
         <div class="inset">
 
         </div>
-        <canvas id="hologramFadeCanvas" class="hologram_fade_overlay"></canvas>
-        
         <div class="id_own_image" style="background-image: url('https://i.imgur.com/7vHo48p.jpg');"></div>
         <img draggable="false" src="images/gzot1Pt.gif" class="flag_video">
         
@@ -258,6 +259,59 @@
                 </div>
         </div>
         
+    
+        <!-- Drugi bottom_holder (rozwijany) -->
+        <div class="bottom_holder info_holder" style="font-size: 20px;">
+            <div class="bottom_grid">
+                <p class="bottom_text" style="color: #1f2125; margin-left: 0px;">Twoje dodatkowe dane</p>
+            </div>
+            <img class="action_arrow" src="images/2aN0vJE.png">
+            <div class="additional_holder">
+                <div class="additional_grid">
+                    <p class="additional_title">Nazwisko rodowe</p>
+                    <p class="additional_subtitle" id="familyName"></p>
+                </div>
+                <div class="additional_grid">
+                    <p class="additional_title">Płeć</p>
+                    <p class="additional_subtitle" id="sex"></p>
+                </div>
+                <div class="additional_grid">
+                    <p class="additional_title">Nazwisko rodowe ojca</p>
+                    <p class="additional_subtitle" id="fathersFamilyName"></p>
+                </div>
+                <div class="additional_grid">
+                    <p class="additional_title">Nazwisko rodowe matki</p>
+                    <p class="additional_subtitle" id="mothersFamilyName"></p>
+                </div>
+                <div class="additional_grid">
+                    <p class="additional_title">Miejsce urodzenia</p>
+                    <p class="additional_subtitle" id="birthPlace"></p>
+                </div>
+                <div class="additional_grid">
+                    <p class="additional_title">Kraj urodzenia</p>
+                    <p class="additional_subtitle" id="countryOfBirth"></p>
+                </div>
+                <div class="additional_grid">
+                    <p class="additional_title">Adres zameldowania na pobyt stały</p>
+                    <p class="additional_subtitle" id="adress"></p>
+                </div>
+                <div class="additional_grid" style="border-bottom: none;">
+                    <p class="additional_title">Data zameldowania na pobyt stały</p>
+                    <p class="additional_subtitle home_date"></p>
+                </div>
+            </div>
+        </div>
+    
+        <!-- Trzeci bottom_holder z przyciskiem "Aktualizuj" -->
+        <div class="bottom_holder" style="height: 90px; margin-bottom: 120px;">
+            <div class="bottom_update">
+                <div class="bottom_update_grid">
+                    <p class="bottom_update_text" style="margin-left: 0px;">Ostatnia aktualizacja</p>
+                    <p class="bottom_update_value" style="margin-left: 0px;"></p>
+                </div>
+                <button class="main_button update">Aktualizuj</button>
+            </div>
+        </div>
     </div>
     
     <script src="assets/bar.js"></script>
@@ -489,82 +543,19 @@
             }
         }
 
-        // Inicjalizacja WebGL hologramu
-        let hologramRenderer;
-        let isGyroscopeEnabled = false;
-
-        function initHologram() {
-            const canvas = document.getElementById('hologramCanvas');
-            canvas.width = 84;  // 2x większa rozdzielczość
-            canvas.height = 106; // 2x większa rozdzielczość
-            hologramRenderer = new HologramRenderer('hologramCanvas');
-        }
-
-        // Funkcja do żądania pozwolenia na iOS
-        function requestGyroscopePermission() {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            isGyroscopeEnabled = true;
-                            startGyroscope();
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                isGyroscopeEnabled = true;
-                startGyroscope();
-            }
-        }
-
-        function startGyroscope() {
-            window.addEventListener('deviceorientation', handleOrientation);
-        }
-
-        function handleOrientation(event) {
-            if (!isGyroscopeEnabled || !hologramRenderer) return;
-
-            const gamma = (event.gamma || 0) / 90.0; // Normalizacja do -1,1
-            const beta = (event.beta || 0) / 90.0;
-            const alpha = (event.alpha || 0) / 360.0;
-
-            hologramRenderer.updateAccelerometer(gamma, beta, alpha);
-        }
-
-        // Uruchomienie po załadowaniu strony
-        window.addEventListener('load', initHologram);
-
-        // Uruchom żyroskop po kliknięciu (wymagane na iOS)
-        document.addEventListener('click', function() {
-            if (!isGyroscopeEnabled) {
-                requestGyroscopePermission();
-            }
-        }, { once: true });
-
-        // Automatyczne uruchomienie na Androidzie
-        if (navigator.userAgent.toLowerCase().indexOf('android') > -1) {
-            setTimeout(() => {
-                isGyroscopeEnabled = true;
-                startGyroscope();
-            }, 1000);
-        }
-    </script>
-
-    <script>
         class HologramFadeEffect {
-            constructor(canvasId, imageSelector) {
+            constructor(canvasId) {
                 this.canvas = document.getElementById(canvasId);
-                this.imageElement = document.querySelector(imageSelector);
                 this.gl = this.canvas.getContext('webgl') || this.canvas.getContext('experimental-webgl');
                 
                 if (!this.gl) {
-                    console.error('WebGL not supported for hologram fade');
+                    console.error('WebGL not supported for fade effect');
                     return;
                 }
 
+                this.accelerometerCoords = [0.0, 0.0, 0.0];
                 this.textures = {};
                 this.program = null;
-                this.accelerometerCoords = [0.0, 0.0, 0.0];
                 
                 this.init();
             }
@@ -587,30 +578,14 @@
                 return `
                     precision mediump float;
                     
-                    uniform sampler2D u_ImageTexture;
-                    uniform sampler2D u_FadeMaskTexture;
                     uniform sampler2D u_HologramTexture;
-                    uniform vec3 u_AccelerometerCoordinates;
+                    uniform float u_Opacity;
                     
                     varying vec2 v_TextureCoordinates;
                     
                     void main() {
-                        // Pobierz oryginalny obraz
-                        vec4 imageColor = texture2D(u_ImageTexture, v_TextureCoordinates);
-                        
-                        // Pobierz maskę zanikania (białe = widoczne, czarne = przezroczyste)
-                        vec4 fadeMask = texture2D(u_FadeMaskTexture, v_TextureCoordinates);
-                        float fadeAlpha = (fadeMask.r + fadeMask.g + fadeMask.b) / 3.0;
-                        
-                        // Pobierz teksturę hologramu z przesunięciem
-                        vec2 hologramCoords = v_TextureCoordinates + u_AccelerometerCoordinates.xy * 0.05;
-                        vec4 hologramColor = texture2D(u_HologramTexture, hologramCoords);
-                        
-                        // Mieszaj hologram z obrazem na podstawie maski
-                        vec3 finalColor = mix(imageColor.rgb, hologramColor.rgb, fadeAlpha * 0.6);
-                        
-                        // Wyjście z przezroczystością kontrolowaną przez maskę
-                        gl_FragColor = vec4(finalColor, imageColor.a * fadeAlpha);
+                        vec4 hologramColor = texture2D(u_HologramTexture, v_TextureCoordinates);
+                        gl_FragColor = vec4(hologramColor.rgb, hologramColor.a * u_Opacity);
                     }
                 `;
             }
@@ -671,10 +646,7 @@
                 this.program = this.createProgram();
                 if (!this.program) return;
 
-                // Załaduj tekstury
-                this.textures.image = this.loadTexture('images/XSZFxrl.png');
-                this.textures.fadeMask = this.loadTexture('images/mid_background_main_dynamic.webp'); // Mapa zanikania
-                this.textures.hologram = this.loadTexture('pictures/hologram_overlay.webp');
+                this.textures.hologram = this.loadTexture('pictures/mid_background_main_dynamic.webp');
 
                 const vertices = new Float32Array([
                     -1.0, -1.0, 0.0, 1.0,
@@ -691,10 +663,8 @@
                 this.texCoordLocation = this.gl.getAttribLocation(this.program, 'a_TextureCoordinates');
                 
                 this.mvpMatrixLocation = this.gl.getUniformLocation(this.program, 'u_MVPMatrix');
-                this.accelerometerLocation = this.gl.getUniformLocation(this.program, 'u_AccelerometerCoordinates');
-                this.imageTextureLocation = this.gl.getUniformLocation(this.program, 'u_ImageTexture');
-                this.fadeMaskTextureLocation = this.gl.getUniformLocation(this.program, 'u_FadeMaskTexture');
                 this.hologramTextureLocation = this.gl.getUniformLocation(this.program, 'u_HologramTexture');
+                this.opacityLocation = this.gl.getUniformLocation(this.program, 'u_Opacity');
 
                 this.render();
             }
@@ -705,7 +675,10 @@
 
             render() {
                 this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+                this.gl.clearColor(0, 0, 0, 0);
                 this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+                this.gl.enable(this.gl.BLEND);
+                this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 
                 this.gl.useProgram(this.program);
 
@@ -725,19 +698,13 @@
                 ]);
                 this.gl.uniformMatrix4fv(this.mvpMatrixLocation, false, mvpMatrix);
 
-                this.gl.uniform3fv(this.accelerometerLocation, this.accelerometerCoords);
+                // Oblicz opacity na podstawie orientacji telefonu (żyroskop)
+                const opacity = Math.abs(Math.sin(this.accelerometerCoords[0] * Math.PI)) * 0.8 + 0.2;
+                this.gl.uniform1f(this.opacityLocation, opacity);
 
                 this.gl.activeTexture(this.gl.TEXTURE0);
-                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.image);
-                this.gl.uniform1i(this.imageTextureLocation, 0);
-
-                this.gl.activeTexture(this.gl.TEXTURE1);
-                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.fadeMask);
-                this.gl.uniform1i(this.fadeMaskTextureLocation, 1);
-
-                this.gl.activeTexture(this.gl.TEXTURE2);
                 this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.hologram);
-                this.gl.uniform1i(this.hologramTextureLocation, 2);
+                this.gl.uniform1i(this.hologramTextureLocation, 0);
 
                 this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 
@@ -745,67 +712,79 @@
             }
         }
 
-        // Inicjalizacja efektu hologramu zanikającego
+        // Inicjalizacja WebGL hologramów
+        let hologramRenderer;
         let hologramFadeEffect;
-        let isFadeGyroscopeEnabled = false;
+        let isGyroscopeEnabled = false;
 
-        function initHologramFade() {
-            const canvas = document.getElementById('hologramFadeCanvas');
+        function initHologram() {
+            const canvas = document.getElementById('hologramCanvas');
+            canvas.width = 84;
+            canvas.height = 106;
+            hologramRenderer = new HologramRenderer('hologramCanvas');
+
+            const fadeCanvas = document.getElementById('hologramFadeCanvas');
             const idImageData = document.querySelector('.id_image_data');
+            const idImage = document.querySelector('.id_image');
             
-            if (idImageData) {
-                canvas.width = idImageData.offsetWidth;
-                canvas.height = idImageData.offsetHeight;
-                hologramFadeEffect = new HologramFadeEffect('hologramFadeCanvas', '.id_image');
+            if (idImage && idImageData) {
+                fadeCanvas.width = idImage.offsetWidth;
+                fadeCanvas.height = idImage.offsetHeight;
+                hologramFadeEffect = new HologramFadeEffect('hologramFadeCanvas');
             }
         }
 
-        function requestFadeGyroscopePermission() {
+        function requestGyroscopePermission() {
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
-                            isFadeGyroscopeEnabled = true;
-                            startFadeGyroscope();
+                            isGyroscopeEnabled = true;
+                            startGyroscope();
                         }
                     })
                     .catch(console.error);
             } else {
-                isFadeGyroscopeEnabled = true;
-                startFadeGyroscope();
+                isGyroscopeEnabled = true;
+                startGyroscope();
             }
         }
 
-        function startFadeGyroscope() {
-            window.addEventListener('deviceorientation', handleFadeOrientation);
+        function startGyroscope() {
+            window.addEventListener('deviceorientation', handleOrientation);
         }
 
-        function handleFadeOrientation(event) {
-            if (!isFadeGyroscopeEnabled || !hologramFadeEffect) return;
+        function handleOrientation(event) {
+            if (!isGyroscopeEnabled) return;
 
             const gamma = (event.gamma || 0) / 90.0;
             const beta = (event.beta || 0) / 90.0;
             const alpha = (event.alpha || 0) / 360.0;
 
-            hologramFadeEffect.updateAccelerometer(gamma, beta, alpha);
+            if (hologramRenderer) {
+                hologramRenderer.updateAccelerometer(gamma, beta, alpha);
+            }
+            
+            if (hologramFadeEffect) {
+                hologramFadeEffect.updateAccelerometer(gamma, beta, alpha);
+            }
         }
 
-        window.addEventListener('load', initHologramFade);
+        window.addEventListener('load', initHologram);
 
         document.addEventListener('click', function() {
-            if (!isFadeGyroscopeEnabled) {
-                requestFadeGyroscopePermission();
+            if (!isGyroscopeEnabled) {
+                requestGyroscopePermission();
             }
         }, { once: true });
 
         if (navigator.userAgent.toLowerCase().indexOf('android') > -1) {
             setTimeout(() => {
-                isFadeGyroscopeEnabled = true;
-                startFadeGyroscope();
+                isGyroscopeEnabled = true;
+                startGyroscope();
             }, 1000);
         }
     </script>
-
     <script>
     document.addEventListener("DOMContentLoaded", () => {
         function generateSerialNumber() {
@@ -860,3 +839,4 @@
     });
 </script>
 </body>
+</html>

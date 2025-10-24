@@ -9,11 +9,15 @@
     <meta name="format-detection" content="telephone=no">
     <meta name="viewport" content="width=device-width, initial-scale=0.8, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
-.monica-reading-highlight {
-  animation: none !important;
-  background-color: transparent !important;
-}
+<style id="monica-reading-highlight-style">
+        .monica-reading-highlight {
+          animation: fadeInOut 1.5s ease-in-out;
+        }
 
+        @keyframes fadeInOut {
+          0%, 100% { background-color: transparent; }
+          30%, 70% { background-color: rgba(128, 128, 128, 0.25); }
+        }
         
       </style></head>
 <body monica-id="ofpnmcalabcbjgholdjcjblkibolbppb" monica-version="7.9.1">
@@ -49,4 +53,5 @@
 
 
 <div id="monica-content-root" class="monica-widget" style="pointer-events: auto;"></div></body></html>
+
 

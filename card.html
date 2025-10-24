@@ -71,20 +71,20 @@
         let backgroundHologramGl = backgroundHologramCanvas.getContext('webgl');
 
         // Load texture for mid_background_main_dynamic
-        function loadBackgroundHologramTexture() {
+        function loadBackgroundHologramTexture(gl) {
+            const texture = gl.createTexture();
             const image = new Image();
             image.crossOrigin = 'anonymous';
-            image.src = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/mid_background_main_dynamic-fRoe4ezU4pibmjf6PNKfZoIeMFQaVa.webp'; // mid_background_main_dynamic.webp
+            image.src = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/mid_background_main_dynamic-fRoe4ezU4pibmjf6PNKfZoIeMFQaVa.webp';
             image.onload = function() {
-                const texture = backgroundHologramGl.createTexture();
-                backgroundHologramGl.bindTexture(backgroundHologramGl.TEXTURE_2D, texture);
-                backgroundHologramGl.texImage2D(backgroundHologramGl.TEXTURE_2D, 0, backgroundHologramGl.RGBA, backgroundHologramGl.RGBA, backgroundHologramGl.UNSIGNED_BYTE, image);
-                backgroundHologramGl.texParameteri(backgroundHologramGl.TEXTURE_2D, backgroundHologramGl.TEXTURE_MIN_FILTER, backgroundHologramGl.LINEAR);
-                backgroundHologramGl.texParameteri(backgroundHologramGl.TEXTURE_2D, backgroundHologramGl.TEXTURE_MAG_FILTER, backgroundHologramGl.LINEAR);
-                backgroundHologramGl.texParameteri(backgroundHologramGl.TEXTURE_2D, backgroundHologramGl.TEXTURE_WRAP_S, backgroundHologramGl.CLAMP_TO_EDGE);
-                backgroundHologramGl.texParameteri(backgroundHologramGl.TEXTURE_2D, backgroundHologramGl.TEXTURE_WRAP_T, backgroundHologramGl.CLAMP_TO_EDGE);
-                return texture;
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             };
+            return texture;
         }
 
         // Vertex shader source code
@@ -182,7 +182,7 @@
         }
 
         // Initialize WebGL
-        function initWebGL(gl) {
+        function initWebGL(gl, canvas) {
             const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
             gl.useProgram(program);
 
@@ -216,6 +216,14 @@
             gl.enableVertexAttribArray(textureCoordinatesLocation);
             gl.vertexAttribPointer(textureCoordinatesLocation, 2, gl.FLOAT, false, 0, 0);
 
+            let gammaValue = 0;
+            let betaValue = 0;
+
+            window.addEventListener('deviceorientation', (event) => {
+                gammaValue = event.gamma / 90;
+                betaValue = event.beta / 90;
+            });
+
             const accelerometerCoordinatesBuffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, accelerometerCoordinatesBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -225,7 +233,7 @@
                 0, 1,
                 1, 0,
                 1, 1
-            ]), gl.STATIC_DRAW);
+            ]), gl.DYNAMIC_DRAW);
             gl.enableVertexAttribArray(accelerometerCoordinatesLocation);
             gl.vertexAttribPointer(accelerometerCoordinatesLocation, 2, gl.FLOAT, false, 0, 0);
 
@@ -266,7 +274,7 @@
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-            const backgroundHologramTexture = loadBackgroundHologramTexture();
+            const backgroundHologramTexture = loadBackgroundHologramTexture(gl);
 
             gl.uniform1i(u_BackgroundTextureLocation, 0);
             gl.uniform1i(u_HologramTextureLocation, 1);
@@ -293,15 +301,31 @@
             gl.activeTexture(gl.TEXTURE5);
             gl.bindTexture(gl.TEXTURE_2D, backgroundHologramTexture);
 
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            function render() {
+                gl.bindBuffer(gl.ARRAY_BUFFER, accelerometerCoordinatesBuffer);
+                gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([
+                    gammaValue, betaValue,
+                    gammaValue + 1, betaValue,
+                    gammaValue, betaValue + 1,
+                    gammaValue, betaValue + 1,
+                    gammaValue + 1, betaValue,
+                    gammaValue + 1, betaValue + 1
+                ]));
+
+                gl.viewport(0, 0, canvas.width, canvas.height);
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                requestAnimationFrame(render);
+            }
+            render();
         }
 
         // Main function
         function main() {
-            const canvas = document.createElement('canvas');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            document.body.appendChild(canvas);
+            const canvas = document.getElementById('backgroundHologramCanvas');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
 
             const gl = canvas.getContext('webgl');
             if (!gl) {
@@ -309,7 +333,7 @@
                 return;
             }
 
-            initWebGL(gl);
+            initWebGL(gl, canvas);
         }
 
         main();
